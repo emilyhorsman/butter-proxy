@@ -1,7 +1,31 @@
-import expandTilde from 'expand-tilde'
 import { exec, spawn } from 'child_process'
+import { createServer } from 'http'
+import { createProxyServer } from 'http-proxy'
+import expandTilde from 'expand-tilde'
+import 'colors'
+
+let state = {}
+
+function printChange(current, next) {
+  const tld = process.env.BUTTER_PROXY_TLD || 'local'
+  for (const key of Object.keys(next)) {
+    if (!current.hasOwnProperty(key)) {
+      console.log(`[${new Date().toISOString()}] ${key} on ${next[key]}`.bold.green)
+    }
+  }
+
+  for (const key of Object.keys(current)) {
+    if (!next.hasOwnProperty(key)) {
+      console.log(`[${new Date().toISOString()}] ${key} no longer listening on ${current[key]}`.red)
+    }
+  }
+}
 
 function checkExecutable(resolve, port, program, err, stdout, stderr) {
+  if (port === (process.env.BUTTER_PROXY_PORT || 80)) {
+    return resolve({})
+  }
+
   const [ pid, path ] = stdout.trim().split(/\:\s+/)
 
   const base = expandTilde(process.env.BUTTER_PROXY_BASE_DIR || '~/src/')
@@ -15,7 +39,7 @@ function checkExecutable(resolve, port, program, err, stdout, stderr) {
   return resolve(ret)
 }
 
-const somethingListeningOn = (localAddr, program) => {
+function somethingListeningOn(localAddr, program) {
   const [ addr, port ] = localAddr.split(/\:+/)
   const [ pid, name ]  = program.split('/')
 
@@ -67,5 +91,21 @@ netstat.stdout.on('data', (data) => {
 
   Promise.all(promises).then(function(servers) {
     const nextState = Object.assign({}, ...servers)
+    printChange(state, nextState)
+    state = nextState
   })
 })
+
+const getTarget = (host) => {
+  return `http://localhost:${state[host]}`
+}
+
+const binding = process.env.BUTTER_PROXY_PORT || 80
+const proxy = createProxyServer()
+createServer(function(req, res) {
+  proxy.web(req, res, {
+    target: getTarget(req.headers['host'])
+  })
+}).listen(binding)
+
+console.log(`[${new Date().toISOString()}] Listening on ${binding}`.magenta)
