@@ -1,0 +1,25 @@
+{
+  "name": "butter-proxy",
+  "version": "1.0.0",
+  "description": "Passes incoming requests to locally running development servers",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "babel src -o index.js --watch"
+  },
+  "bin": {
+    "butter-proxy": "./index.js"
+  },
+  "author": "Emily Horsman <me@emilyhorsman.com>",
+  "url": "https://github.com/emilyhorsman/butter-proxy",
+  "license": "ISC",
+  "dependencies": {
+    "expand-tilde": "^1.2.0",
+    "http-proxy": "^1.13.2",
+    "http-proxy-rules": "^1.0.1"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.5.1",
+    "babel-preset-es2015": "^6.5.0"
+  }
+}
