@@ -1,24 +1,30 @@
 import expandTilde from 'expand-tilde'
 import { exec, spawn } from 'child_process'
 
-const checkExecutable = (port, program, err, stdout, stderr) => {
+function checkExecutable(resolve, port, program, err, stdout, stderr) {
   const [ pid, path ] = stdout.trim().split(/\:\s+/)
 
-  if (!path.startsWith(expandTilde('~/src/'))) {
-    return
+  const base = expandTilde(process.env.BUTTER_PROXY_BASE_DIR || '~/src/')
+  if (!path.startsWith(base)) {
+    return resolve({})
   }
 
-  console.log(`${path} (${pid}/${program}) running on ${port}`)
+  const folder = path.substr(base.length).split('/')[0]
+  const ret = {}
+  ret[folder] = port
+  return resolve(ret)
 }
 
 const somethingListeningOn = (localAddr, program) => {
   const [ addr, port ] = localAddr.split(/\:+/)
   const [ pid, name ]  = program.split('/')
 
-  exec(`pwdx ${pid}`, checkExecutable.bind(this, port, program))
+  return new Promise((resolve, reject) => {
+    exec(`pwdx ${pid}`, checkExecutable.bind(null, resolve, port, program))
+  })
 }
 
-const netstatColumns = {
+const NETSTAT_COLUMNS = {
   proto: 0,
   localAddr: 3,
   program: 6
@@ -36,6 +42,8 @@ netstat.stdout.setEncoding('utf8')
 
 netstat.stdout.on('data', (data) => {
   const lines = data.toString().split("\n")
+  let promises = []
+
   for (const line of lines) {
     const cols = line.trim().split(/\s+/)
 
@@ -43,14 +51,21 @@ netstat.stdout.on('data', (data) => {
       continue
     }
 
-    if (!cols[netstatColumns.proto].startsWith('tcp')) {
+    if (!cols[NETSTAT_COLUMNS.proto].startsWith('tcp')) {
       continue
     }
 
-    if (cols[netstatColumns.program] === '-') {
+    if (cols[NETSTAT_COLUMNS.program] === '-') {
       continue
     }
 
-    somethingListeningOn(cols[netstatColumns.localAddr], cols[netstatColumns.program])
+    promises.push(somethingListeningOn(
+      cols[NETSTAT_COLUMNS.localAddr],
+      cols[NETSTAT_COLUMNS.program]
+    ))
   }
+
+  Promise.all(promises).then(function(servers) {
+    const nextState = Object.assign({}, ...servers)
+  })
 })

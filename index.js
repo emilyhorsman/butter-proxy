@@ -10,7 +10,9 @@ var _child_process = require('child_process');
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-var checkExecutable = function checkExecutable(port, program, err, stdout, stderr) {
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+function checkExecutable(resolve, port, program, err, stdout, stderr) {
   var _stdout$trim$split = stdout.trim().split(/\:\s+/);
 
   var _stdout$trim$split2 = _slicedToArray(_stdout$trim$split, 2);
@@ -19,12 +21,16 @@ var checkExecutable = function checkExecutable(port, program, err, stdout, stder
   var path = _stdout$trim$split2[1];
 
 
-  if (!path.startsWith((0, _expandTilde2.default)('~/src/'))) {
-    return;
+  var base = (0, _expandTilde2.default)(process.env.BUTTER_PROXY_BASE_DIR || '~/src/');
+  if (!path.startsWith(base)) {
+    return resolve({});
   }
 
-  console.log(path + ' (' + pid + '/' + program + ') running on ' + port);
-};
+  var folder = path.substr(base.length).split('/')[0];
+  var ret = {};
+  ret[folder] = port;
+  return resolve(ret);
+}
 
 var somethingListeningOn = function somethingListeningOn(localAddr, program) {
   var _localAddr$split = localAddr.split(/\:+/);
@@ -42,10 +48,12 @@ var somethingListeningOn = function somethingListeningOn(localAddr, program) {
   var name = _program$split2[1];
 
 
-  (0, _child_process.exec)('pwdx ' + pid, checkExecutable.bind(undefined, port, program));
+  return new Promise(function (resolve, reject) {
+    (0, _child_process.exec)('pwdx ' + pid, checkExecutable.bind(null, resolve, port, program));
+  });
 };
 
-var netstatColumns = {
+var NETSTAT_COLUMNS = {
   proto: 0,
   localAddr: 3,
   program: 6
@@ -63,6 +71,8 @@ netstat.stdout.setEncoding('utf8');
 
 netstat.stdout.on('data', function (data) {
   var lines = data.toString().split("\n");
+  var promises = [];
+
   var _iteratorNormalCompletion = true;
   var _didIteratorError = false;
   var _iteratorError = undefined;
@@ -77,15 +87,15 @@ netstat.stdout.on('data', function (data) {
         continue;
       }
 
-      if (!cols[netstatColumns.proto].startsWith('tcp')) {
+      if (!cols[NETSTAT_COLUMNS.proto].startsWith('tcp')) {
         continue;
       }
 
-      if (cols[netstatColumns.program] === '-') {
+      if (cols[NETSTAT_COLUMNS.program] === '-') {
         continue;
       }
 
-      somethingListeningOn(cols[netstatColumns.localAddr], cols[netstatColumns.program]);
+      promises.push(somethingListeningOn(cols[NETSTAT_COLUMNS.localAddr], cols[NETSTAT_COLUMNS.program]));
     }
   } catch (err) {
     _didIteratorError = true;
@@ -101,4 +111,10 @@ netstat.stdout.on('data', function (data) {
       }
     }
   }
+
+  Promise.all(promises).then(function (servers) {
+    var _Object;
+
+    var nextState = (_Object = Object).assign.apply(_Object, [{}].concat(_toConsumableArray(servers)));
+  });
 });
