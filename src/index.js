@@ -8,9 +8,9 @@ import expandTilde from 'expand-tilde'
 import colors from 'colors/safe'
 
 program
-  .version('1.2.0')
+  .version('2.0.0')
   .description('Passes incoming requests to locally running development servers')
-  .option('-t, --tld [tld]', 'Top-level domain, defaults to local', 'local')
+  .option('-t, --tld [tld]', 'Top-level domain, defaults to pxy', 'pxy')
   .option('-p, --port [port]', 'Port the proxy will bind to, defaults to 80', 80)
   .option('-b, --base [path]', 'Only proxy to processes from this directory, defaults to ~/src', '~/src')
 program.parse(process.argv)
@@ -123,7 +123,7 @@ netstat.stdout.on('data', (data) => {
  *
  * Let's say the base directory is `~`. A server is running in `~/src/foo/bar`.
  * If a request comes to `bar.foo.src`, it should work. If a request comes to
- * `bar.foo.src.local`, it should work, because the TLD is .local. If a request
+ * `bar.foo.src.pxy`, it should work, because the TLD is .local. If a request
  * comes to `bar.foo.src.xyz`, it should not work, since the TLD is not `xyz`
  * and since there is no server running in `~/src/foo/bar/xyz`
  */

@@ -1,6 +1,6 @@
 {
   "name": "butter-proxy",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Passes incoming requests to locally running development servers",
   "main": "index.js",
   "scripts": {
@@ -18,7 +18,7 @@
   },
   "os": ["linux"],
   "license": "ISC",
-  "files": ["index.js"],
+  "files": ["index.js", "README.md"],
   "dependencies": {
     "colors": "^1.1.2",
     "commander": "^2.9.0",
