@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { exec, spawn } from 'child_process'
 import { createServer } from 'http'
 import { createProxyServer } from 'http-proxy'
@@ -6,7 +8,7 @@ import expandTilde from 'expand-tilde'
 import colors from 'colors/safe'
 
 program
-  .version('1.0.0')
+  .version('1.2.0')
   .description('Passes incoming requests to locally running development servers')
   .option('-t, --tld [tld]', 'Top-level domain, defaults to local', 'local')
   .option('-p, --port [port]', 'Port the proxy will bind to, defaults to 80', 80)

@@ -1,6 +1,6 @@
 {
   "name": "butter-proxy",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Passes incoming requests to locally running development servers",
   "main": "index.js",
   "scripts": {
@@ -12,7 +12,13 @@
   },
   "author": "Emily Horsman <me@emilyhorsman.com>",
   "url": "https://github.com/emilyhorsman/butter-proxy",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:emilyhorsman/butter-proxy.git"
+  },
+  "os": ["linux"],
   "license": "ISC",
+  "files": ["index.js"],
   "dependencies": {
     "colors": "^1.1.2",
     "commander": "^2.9.0",
