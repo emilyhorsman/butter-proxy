@@ -12,13 +12,19 @@ var _expandTilde = require('expand-tilde');
 
 var _expandTilde2 = _interopRequireDefault(_expandTilde);
 
-require('colors');
+var _safe = require('colors/safe');
+
+var _safe2 = _interopRequireDefault(_safe);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
 var state = {};
+
+function log(string, color) {
+  console.log(_safe2.default[color]('[' + new Date().toISOString() + '] ' + string));
+}
 
 function printChange(current, next) {
   var tld = process.env.BUTTER_PROXY_TLD || 'local';
@@ -31,7 +37,7 @@ function printChange(current, next) {
       var key = _step.value;
 
       if (!current.hasOwnProperty(key)) {
-        console.log(('[' + new Date().toISOString() + '] ' + key + ' on ' + next[key]).bold.green);
+        log(key + ' on ' + next[key], 'green');
       }
     }
   } catch (err) {
@@ -58,7 +64,7 @@ function printChange(current, next) {
       var key = _step2.value;
 
       if (!next.hasOwnProperty(key)) {
-        console.log(('[' + new Date().toISOString() + '] ' + key + ' no longer listening on ' + current[key]).red);
+        log(key + ' no longer listening on ' + current[key], 'red');
       }
     }
   } catch (err) {
@@ -191,15 +197,25 @@ netstat.stdout.on('data', function (data) {
 });
 
 var getTarget = function getTarget(host) {
-  return 'http://localhost:' + state[host];
+  var key = host.split('.').slice(0, -1).join('.');
+  return 'http://localhost:' + state[key];
 };
 
 var binding = process.env.BUTTER_PROXY_PORT || 80;
 var proxy = (0, _httpProxy.createProxyServer)();
+
+proxy.on('proxyRes', function (proxyRes, req, res) {
+  log(proxyRes.statusCode + ' from ' + req.headers['host'] + req.url, 'magenta');
+});
+
 (0, _http.createServer)(function (req, res) {
+  var host = req.headers['host'];
+  var target = getTarget(host);
+  log(req.method + ' ' + req.url + ' to ' + host, 'magenta');
+
   proxy.web(req, res, {
-    target: getTarget(req.headers['host'])
+    target: target
   });
 }).listen(binding);
 
-console.log(('[' + new Date().toISOString() + '] Listening on ' + binding).magenta);
+log('Listening on ' + binding, 'magenta');

@@ -2,21 +2,25 @@ import { exec, spawn } from 'child_process'
 import { createServer } from 'http'
 import { createProxyServer } from 'http-proxy'
 import expandTilde from 'expand-tilde'
-import 'colors'
+import colors from 'colors/safe'
 
 let state = {}
+
+function log(string, color) {
+  console.log(colors[color](`[${new Date().toISOString()}] ${string}`))
+}
 
 function printChange(current, next) {
   const tld = process.env.BUTTER_PROXY_TLD || 'local'
   for (const key of Object.keys(next)) {
     if (!current.hasOwnProperty(key)) {
-      console.log(`[${new Date().toISOString()}] ${key} on ${next[key]}`.bold.green)
+      log(`${key} on ${next[key]}`, 'green')
     }
   }
 
   for (const key of Object.keys(current)) {
     if (!next.hasOwnProperty(key)) {
-      console.log(`[${new Date().toISOString()}] ${key} no longer listening on ${current[key]}`.red)
+      log(`${key} no longer listening on ${current[key]}`, 'red')
     }
   }
 }
@@ -97,15 +101,25 @@ netstat.stdout.on('data', (data) => {
 })
 
 const getTarget = (host) => {
-  return `http://localhost:${state[host]}`
+  const key = host.split('.').slice(0, -1).join('.')
+  return `http://localhost:${state[key]}`
 }
 
 const binding = process.env.BUTTER_PROXY_PORT || 80
 const proxy = createProxyServer()
+
+proxy.on('proxyRes', function(proxyRes, req, res) {
+  log(`${proxyRes.statusCode} from ${req.headers['host']}${req.url}`, 'magenta')
+})
+
 createServer(function(req, res) {
+  const host = req.headers['host']
+  const target = getTarget(host)
+  log(`${req.method} ${req.url} to ${host}`, 'magenta')
+
   proxy.web(req, res, {
-    target: getTarget(req.headers['host'])
+    target: target
   })
 }).listen(binding)
 
-console.log(`[${new Date().toISOString()}] Listening on ${binding}`.magenta)
+log(`Listening on ${binding}`, 'magenta')
