@@ -8,6 +8,10 @@ var _http = require('http');
 
 var _httpProxy = require('http-proxy');
 
+var _commander = require('commander');
+
+var _commander2 = _interopRequireDefault(_commander);
+
 var _expandTilde = require('expand-tilde');
 
 var _expandTilde2 = _interopRequireDefault(_expandTilde);
@@ -20,14 +24,16 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
+_commander2.default.version('1.0.0').description('Passes incoming requests to locally running development servers').option('-t, --tld [tld]', 'Top-level domain, defaults to local', 'local').option('-p, --port [port]', 'Port the proxy will bind to, defaults to 80', 80).option('-b, --base [path]', 'Only proxy to processes from this directory, defaults to ~/src', '~/src');
+_commander2.default.parse(process.argv);
+
 var state = {};
 
 function log(string, color) {
   console.log(_safe2.default[color]('[' + new Date().toISOString() + '] ' + string));
 }
 
-function printChange(current, next) {
-  var tld = process.env.BUTTER_PROXY_TLD || 'local';
+var printChange = function printChange(current, next) {
   var _iteratorNormalCompletion = true;
   var _didIteratorError = false;
   var _iteratorError = undefined;
@@ -37,7 +43,7 @@ function printChange(current, next) {
       var key = _step.value;
 
       if (!current.hasOwnProperty(key)) {
-        log(key + ' on ' + next[key], 'green');
+        log(key + '.' + _commander2.default.tld + ' on ' + next[key], 'green');
       }
     }
   } catch (err) {
@@ -81,13 +87,9 @@ function printChange(current, next) {
       }
     }
   }
-}
+};
 
-function checkExecutable(resolve, port, program, err, stdout, stderr) {
-  if (port === (process.env.BUTTER_PROXY_PORT || 80)) {
-    return resolve({});
-  }
-
+function checkExecutable(resolve, opts, port, program, err, stdout, stderr) {
   var _stdout$trim$split = stdout.trim().split(/\:\s+/);
 
   var _stdout$trim$split2 = _slicedToArray(_stdout$trim$split, 2);
@@ -96,18 +98,24 @@ function checkExecutable(resolve, port, program, err, stdout, stderr) {
   var path = _stdout$trim$split2[1];
 
 
-  var base = (0, _expandTilde2.default)(process.env.BUTTER_PROXY_BASE_DIR || '~/src/');
+  var base = (0, _expandTilde2.default)(opts.base);
   if (!path.startsWith(base)) {
     return resolve({});
   }
 
-  var folder = path.substr(base.length).split('/')[0];
+  var host = path.substr(base.length) // Remove the base dir as it isn't part of the host
+  .split('/').filter(function (s) {
+    return s;
+  }) // Handle lack of trailing slash (remove blanks)
+  .reverse() // Server in ~/src/foo/www should be www.foo.tld
+  .join('.');
+
   var ret = {};
-  ret[folder] = port;
+  ret[host] = port;
   return resolve(ret);
 }
 
-function somethingListeningOn(localAddr, program) {
+function somethingListeningOn(localAddr, program, opts) {
   var _localAddr$split = localAddr.split(/\:+/);
 
   var _localAddr$split2 = _slicedToArray(_localAddr$split, 2);
@@ -123,8 +131,12 @@ function somethingListeningOn(localAddr, program) {
   var name = _program$split2[1];
 
 
+  if (opts.port === port) {
+    return;
+  }
+
   return new Promise(function (resolve, reject) {
-    (0, _child_process.exec)('pwdx ' + pid, checkExecutable.bind(null, resolve, port, program));
+    (0, _child_process.exec)('pwdx ' + pid, checkExecutable.bind(null, resolve, opts, port, program));
   });
 }
 
@@ -170,7 +182,7 @@ netstat.stdout.on('data', function (data) {
         continue;
       }
 
-      promises.push(somethingListeningOn(cols[NETSTAT_COLUMNS.localAddr], cols[NETSTAT_COLUMNS.program]));
+      promises.push(somethingListeningOn(cols[NETSTAT_COLUMNS.localAddr], cols[NETSTAT_COLUMNS.program], _commander2.default));
     }
   } catch (err) {
     _didIteratorError3 = true;
@@ -196,12 +208,28 @@ netstat.stdout.on('data', function (data) {
   });
 });
 
+/*
+ * The TLD is used for disambiguation purposes, but it can be left off. This
+ * function will return false if the key is not a valid host.
+ *
+ * Let's say the base directory is `~`. A server is running in `~/src/foo/bar`.
+ * If a request comes to `bar.foo.src`, it should work. If a request comes to
+ * `bar.foo.src.local`, it should work, because the TLD is .local. If a request
+ * comes to `bar.foo.src.xyz`, it should not work, since the TLD is not `xyz`
+ * and since there is no server running in `~/src/foo/bar/xyz`
+ */
 var getTarget = function getTarget(host) {
-  var key = host.split('.').slice(0, -1).join('.');
+  var i = host.indexOf('.' + _commander2.default.tld);
+  var key = i === -1 ? host : host.slice(0, i);
+
+  if (!state.hasOwnProperty(key)) {
+    return false;
+  }
+
   return 'http://localhost:' + state[key];
 };
 
-var binding = process.env.BUTTER_PROXY_PORT || 80;
+var binding = _commander2.default.port;
 var proxy = (0, _httpProxy.createProxyServer)();
 
 proxy.on('proxyRes', function (proxyRes, req, res) {
@@ -212,6 +240,11 @@ proxy.on('proxyRes', function (proxyRes, req, res) {
   var host = req.headers['host'];
   var target = getTarget(host);
   log(req.method + ' ' + req.url + ' to ' + host, 'magenta');
+
+  if (!target) {
+    res.writeHead(400);
+    return res.end();
+  }
 
   proxy.web(req, res, {
     target: target

@@ -1,8 +1,17 @@
 import { exec, spawn } from 'child_process'
 import { createServer } from 'http'
 import { createProxyServer } from 'http-proxy'
+import program from 'commander'
 import expandTilde from 'expand-tilde'
 import colors from 'colors/safe'
+
+program
+  .version('1.0.0')
+  .description('Passes incoming requests to locally running development servers')
+  .option('-t, --tld [tld]', 'Top-level domain, defaults to local', 'local')
+  .option('-p, --port [port]', 'Port the proxy will bind to, defaults to 80', 80)
+  .option('-b, --base [path]', 'Only proxy to processes from this directory, defaults to ~/src', '~/src')
+program.parse(process.argv)
 
 let state = {}
 
@@ -10,11 +19,10 @@ function log(string, color) {
   console.log(colors[color](`[${new Date().toISOString()}] ${string}`))
 }
 
-function printChange(current, next) {
-  const tld = process.env.BUTTER_PROXY_TLD || 'local'
+const printChange = (current, next) => {
   for (const key of Object.keys(next)) {
     if (!current.hasOwnProperty(key)) {
-      log(`${key} on ${next[key]}`, 'green')
+      log(`${key}.${program.tld} on ${next[key]}`, 'green')
     }
   }
 
@@ -25,30 +33,36 @@ function printChange(current, next) {
   }
 }
 
-function checkExecutable(resolve, port, program, err, stdout, stderr) {
-  if (port === (process.env.BUTTER_PROXY_PORT || 80)) {
-    return resolve({})
-  }
-
+function checkExecutable(resolve, opts, port, program, err, stdout, stderr) {
   const [ pid, path ] = stdout.trim().split(/\:\s+/)
 
-  const base = expandTilde(process.env.BUTTER_PROXY_BASE_DIR || '~/src/')
+  const base = expandTilde(opts.base)
   if (!path.startsWith(base)) {
     return resolve({})
   }
 
-  const folder = path.substr(base.length).split('/')[0]
+  const host = path
+    .substr(base.length)  // Remove the base dir as it isn't part of the host
+    .split('/')
+    .filter((s) => s)     // Handle lack of trailing slash (remove blanks)
+    .reverse()            // Server in ~/src/foo/www should be www.foo.tld
+    .join('.')
+
   const ret = {}
-  ret[folder] = port
+  ret[host] = port
   return resolve(ret)
 }
 
-function somethingListeningOn(localAddr, program) {
+function somethingListeningOn(localAddr, program, opts) {
   const [ addr, port ] = localAddr.split(/\:+/)
   const [ pid, name ]  = program.split('/')
 
+  if (opts.port === port) {
+    return
+  }
+
   return new Promise((resolve, reject) => {
-    exec(`pwdx ${pid}`, checkExecutable.bind(null, resolve, port, program))
+    exec(`pwdx ${pid}`, checkExecutable.bind(null, resolve, opts, port, program))
   })
 }
 
@@ -89,7 +103,8 @@ netstat.stdout.on('data', (data) => {
 
     promises.push(somethingListeningOn(
       cols[NETSTAT_COLUMNS.localAddr],
-      cols[NETSTAT_COLUMNS.program]
+      cols[NETSTAT_COLUMNS.program],
+      program
     ))
   }
 
@@ -100,12 +115,28 @@ netstat.stdout.on('data', (data) => {
   })
 })
 
+/*
+ * The TLD is used for disambiguation purposes, but it can be left off. This
+ * function will return false if the key is not a valid host.
+ *
+ * Let's say the base directory is `~`. A server is running in `~/src/foo/bar`.
+ * If a request comes to `bar.foo.src`, it should work. If a request comes to
+ * `bar.foo.src.local`, it should work, because the TLD is .local. If a request
+ * comes to `bar.foo.src.xyz`, it should not work, since the TLD is not `xyz`
+ * and since there is no server running in `~/src/foo/bar/xyz`
+ */
 const getTarget = (host) => {
-  const key = host.split('.').slice(0, -1).join('.')
+  const i = host.indexOf('.' + program.tld)
+  const key = (i === -1) ? host : host.slice(0, i)
+
+  if (!state.hasOwnProperty(key)) {
+    return false
+  }
+
   return `http://localhost:${state[key]}`
 }
 
-const binding = process.env.BUTTER_PROXY_PORT || 80
+const binding = program.port
 const proxy = createProxyServer()
 
 proxy.on('proxyRes', function(proxyRes, req, res) {
@@ -116,6 +147,11 @@ createServer(function(req, res) {
   const host = req.headers['host']
   const target = getTarget(host)
   log(`${req.method} ${req.url} to ${host}`, 'magenta')
+
+  if (!target) {
+    res.writeHead(400)
+    return res.end()
+  }
 
   proxy.web(req, res, {
     target: target

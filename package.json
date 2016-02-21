@@ -15,9 +15,9 @@
   "license": "ISC",
   "dependencies": {
     "colors": "^1.1.2",
+    "commander": "^2.9.0",
     "expand-tilde": "^1.2.0",
-    "http-proxy": "^1.13.2",
-    "http-proxy-rules": "^1.0.1"
+    "http-proxy": "^1.13.2"
   },
   "devDependencies": {
     "babel-cli": "^6.5.1",
