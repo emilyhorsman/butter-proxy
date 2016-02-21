@@ -8,7 +8,7 @@ import expandTilde from 'expand-tilde'
 import colors from 'colors/safe'
 
 program
-  .version('2.0.0')
+  .version('2.0.1')
   .description('Passes incoming requests to locally running development servers')
   .option('-t, --tld [tld]', 'Top-level domain, defaults to pxy', 'pxy')
   .option('-p, --port [port]', 'Port the proxy will bind to, defaults to 80', 80)

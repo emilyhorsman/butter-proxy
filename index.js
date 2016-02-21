@@ -25,7 +25,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
-_commander2.default.version('2.0.0').description('Passes incoming requests to locally running development servers').option('-t, --tld [tld]', 'Top-level domain, defaults to pxy', 'pxy').option('-p, --port [port]', 'Port the proxy will bind to, defaults to 80', 80).option('-b, --base [path]', 'Only proxy to processes from this directory, defaults to ~/src', '~/src');
+_commander2.default.version('2.0.1').description('Passes incoming requests to locally running development servers').option('-t, --tld [tld]', 'Top-level domain, defaults to pxy', 'pxy').option('-p, --port [port]', 'Port the proxy will bind to, defaults to 80', 80).option('-b, --base [path]', 'Only proxy to processes from this directory, defaults to ~/src', '~/src');
 _commander2.default.parse(process.argv);
 
 var state = {};
